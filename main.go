@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -242,6 +243,11 @@ func profileForArch(arch string) qemuProfile {
 	}
 }
 
+// isWindowsHost checks if the current host OS is Windows
+func isWindowsHost() bool {
+	return runtime.GOOS == "windows"
+}
+
 func main() {
 
 	arch := flag.String("arch", "aarch64", "Target architecture (e.g., aarch64, x86_64)")
@@ -371,6 +377,14 @@ func main() {
 		"-vnc", fmt.Sprintf(":%s", vncPort[len(vncPort)-1:]),
 		"-serial", "stdio",
 		"-fw_cfg", fmt.Sprintf("name=opt/com.coreos/config,file=%s", configFile),
+	}
+
+	// Add Windows virtualization features when running on Windows host
+	if isWindowsHost() {
+		// Enable hardware acceleration for Windows
+		args = append(args, "-accel", "whpx")
+		// Enable Hyper-V enlightenments for better Windows guest performance
+		args = append(args, "-cpu", "host,hv_relaxed,hv_spinlocks=0x1fff,hv_vapic,hv_time")
 	}
 
 	// Only set -cpu if we have a profile-specific value
