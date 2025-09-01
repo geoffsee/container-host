@@ -8,3 +8,4 @@
 *.qcow2
 /configs/
 /container-os
+configs/ignition-config.json
