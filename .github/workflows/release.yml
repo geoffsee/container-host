@@ -29,9 +29,11 @@ jobs:
           # Create dist directory
           mkdir -p dist
           
-          # Build for macOS platforms only (since this uses macOS-specific QEMU paths)
+          # Build for multiple platforms (supports cross-platform QEMU executors)
           GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=${{ steps.tag.outputs.TAG }}" -o dist/container-os-darwin-amd64 .
           GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=${{ steps.tag.outputs.TAG }}" -o dist/container-os-darwin-arm64 .
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${{ steps.tag.outputs.TAG }}" -o dist/container-os-linux-amd64 .
+          GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version=${{ steps.tag.outputs.TAG }}" -o dist/container-os-linux-arm64 .
           
           # Make binaries executable
           chmod +x dist/container-os-*
