@@ -1,0 +1,10 @@
+/ssh_keys/
+*.iml
+.idea/
+/ignition-config.json
+/ssh_keys
+/images/
+/vms/
+*.qcow2
+/configs/
+/container-os
