@@ -1,4 +1,4 @@
-BINARY_NAME := container-os
+BINARY_NAME := container-host
 
 .PHONY: build run clean clean_vm
 

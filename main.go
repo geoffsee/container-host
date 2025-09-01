@@ -78,7 +78,7 @@ Requires=docker.service
 Type=simple
 Restart=always
 RestartSec=5
-ExecStart=/usr/bin/socat TCP-LISTEN:2375,bind=0.0.0.0,fork,reuseaddr UNIX-CONNECT:/var/run/docker.sock
+ExecStart=/usr/bin/socat TCP-LISTEN:2377,bind=0.0.0.0,fork,reuseaddr UNIX-CONNECT:/var/run/docker.sock
 
 [Install]
 WantedBy=multi-user.target`
@@ -173,7 +173,7 @@ func generateSSHKeyPair(privateKeyPath, publicKeyPath string) error {
 
 	// Format public key with comment
 	publicKeyBytes := ssh.MarshalAuthorizedKey(publicKey)
-	publicKeyString := fmt.Sprintf("%s coreos@container-os", strings.TrimSpace(string(publicKeyBytes)))
+	publicKeyString := fmt.Sprintf("%s coreos@container-host", strings.TrimSpace(string(publicKeyBytes)))
 
 	// Write public key to file
 	if err := ioutil.WriteFile(publicKeyPath, []byte(publicKeyString), 0644); err != nil {
@@ -185,6 +185,61 @@ func generateSSHKeyPair(privateKeyPath, publicKeyPath string) error {
 	fmt.Printf("  Public key: %s\n", publicKeyPath)
 
 	return nil
+}
+
+// findFirstExisting returns the first path that exists, or empty string.
+func findFirstExisting(paths ...string) string {
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+type qemuProfile struct {
+	binary         string
+	machine        string
+	cpu            string
+	biosCandidates []string
+}
+
+func profileForArch(arch string) qemuProfile {
+	switch arch {
+	case "aarch64":
+		return qemuProfile{
+			binary:  "qemu-system-aarch64",
+			machine: "virt",
+			cpu:     "cortex-a72",
+			biosCandidates: []string{
+				"/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
+				"/usr/share/edk2/aarch64/QEMU_EFI.fd",
+				"/usr/share/AAVMF/AAVMF_CODE.fd",
+				"/usr/share/qemu-efi-aarch64/QEMU_EFI.fd",
+			},
+		}
+	case "x86_64", "amd64":
+		return qemuProfile{
+			binary:  "qemu-system-x86_64",
+			machine: "q35",
+			cpu:     "host",
+			biosCandidates: []string{
+				"/opt/homebrew/share/qemu/edk2-x86_64-code.fd",
+				"/usr/share/OVMF/OVMF_CODE.fd",
+				"/usr/share/edk2/ovmf/OVMF_CODE.fd",
+			},
+		}
+	default:
+		// Fallback: best effort — QEMU naming usually matches qemu-system-<arch>.
+		return qemuProfile{
+			binary:         fmt.Sprintf("qemu-system-%s", arch),
+			machine:        "virt",
+			cpu:            "",
+			biosCandidates: []string{
+				// no good generic candidates — let QEMU default if none exist
+			},
+		}
+	}
 }
 
 func main() {
@@ -212,7 +267,7 @@ func main() {
 	cpus := "2"
 	sshPort := "2222"
 	vncPort := "5900"
-	dockerPort := "2375"
+	dockerPort := "2377"
 	sshPublicKeyPath := "ssh_keys/coreos_rsa.pub"
 
 	// Check if VM image exists
@@ -261,7 +316,7 @@ func main() {
 	fmt.Println("✓ JSON validation passed")
 
 	// Write ignition config to temporary file for fw_cfg
-	configFile := "configs/ignition-config.json"
+	configFile := "configs/ignition.json"
 	err = ioutil.WriteFile(configFile, []byte(ignitionConfig), 0644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing ignition config file: %v\n", err)
@@ -279,7 +334,7 @@ func main() {
 	fmt.Printf("VNC Port: %s (connect with VNC viewer to localhost:%s)\n", vncPort, vncPort)
 	fmt.Printf("Docker Port: %s (Docker API accessible at localhost:%s)\n", dockerPort, dockerPort)
 	fmt.Println("Docker CE: Will be installed and enabled on first boot")
-	fmt.Println("Host Access: export DOCKER_HOST=tcp://localhost:2375")
+	fmt.Println("Host Access: export DOCKER_HOST=tcp://localhost:2377")
 	fmt.Println("==========================================")
 	fmt.Println("Starting VM...")
 
@@ -290,30 +345,50 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Build QEMU command with Ignition configuration
-	qemuCmd := exec.Command("qemu-system-aarch64",
-		"-M", "virt",
-		"-cpu", "cortex-a72",
+	prof := profileForArch(*arch)
+
+	// Ensure the QEMU binary exists in PATH
+	qemuPath, err := exec.LookPath(prof.binary)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: required QEMU binary %q not found in PATH (arch=%s)\n", prof.binary, *arch)
+		os.Exit(1)
+	}
+
+	// Optional: choose a matching firmware/BIOS if present
+	biosPath := findFirstExisting(prof.biosCandidates...)
+	biosArgs := []string{}
+	if biosPath != "" {
+		biosArgs = []string{"-bios", biosPath}
+	}
+
+	args := []string{
+		"-M", prof.machine,
 		"-smp", cpus,
 		"-m", memory,
 		"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", absImagePath),
-		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%s-:22,hostfwd=tcp::%s-:2375", sshPort, dockerPort),
+		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%s-:22,hostfwd=tcp::%s-:2377", sshPort, dockerPort),
 		"-device", "virtio-net-pci,netdev=net0",
-		"-vnc", fmt.Sprintf(":%s", vncPort[len(vncPort)-1:]), // Extract last digit for VNC display
+		"-vnc", fmt.Sprintf(":%s", vncPort[len(vncPort)-1:]),
 		"-serial", "stdio",
-		"-bios", "/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
 		"-fw_cfg", fmt.Sprintf("name=opt/com.coreos/config,file=%s", configFile),
-	)
+	}
 
-	// Set up command to inherit stdout/stderr
+	// Only set -cpu if we have a profile-specific value
+	if prof.cpu != "" {
+		args = append([]string{"-cpu", prof.cpu}, args...)
+	}
+
+	// Prepend optional BIOS args at the end so it overrides defaults if present
+	args = append(args, biosArgs...)
+
+	// Compose and run
+	qemuCmd := exec.Command(qemuPath, args...)
 	qemuCmd.Stdout = os.Stdout
 	qemuCmd.Stderr = os.Stderr
 	qemuCmd.Stdin = os.Stdin
 
-	// Execute QEMU command
-	fmt.Printf("Executing: %s\n", qemuCmd.String())
-	err = qemuCmd.Run()
-	if err != nil {
+	fmt.Printf("Executing: %s %s\n", qemuPath, strings.Join(args, " "))
+	if err := qemuCmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting VM: %v\n", err)
 		os.Exit(1)
 	}

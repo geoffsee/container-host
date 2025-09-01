@@ -1,4 +1,4 @@
-module container-os
+module container-host
 
 go 1.24
 
