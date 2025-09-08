@@ -59,7 +59,7 @@ jobs:
       - name: Build CLI wrapper and platform packages
         run: |
           # Update main package.json version
-          bun run --bun -e "
+          bun -e "
             const pkg = require('./package.json');
             const version = '${{ steps.version.outputs.VERSION }}'.replace(/^v/, '');
             pkg.version = version;
@@ -76,7 +76,7 @@ jobs:
             echo "Processing platform: $platform"
             
             # Update platform package.json version
-            bun run --bun -e "
+            bun -e "
               const pkg = require('./$platform_dir/package.json');
               pkg.version = '${{ steps.version.outputs.VERSION }}'.replace(/^v/, '');
               require('fs').writeFileSync('./$platform_dir/package.json', JSON.stringify(pkg, null, 2));
