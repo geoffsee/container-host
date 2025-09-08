@@ -1,174 +1,242 @@
-# Security Audit Report - Container Host Project
-**Date:** September 8, 2025  
-**Version:** 1.0  
-**Audited System:** container-host (Go-based Fedora CoreOS VM management tool)
+# Security Policy
 
-## Executive Summary
+## Overview
 
-This security audit evaluates the container-host project, a Go-based tool for creating and managing Fedora CoreOS virtual machines with Docker and Kubernetes support using QEMU. The system provides VM provisioning, Docker integration, and K0s Kubernetes cluster management capabilities.
+container-host-cli manages system-level resources including virtual machines, network interfaces, and file systems. We take security seriously and have established this policy to ensure responsible disclosure and handling of security vulnerabilities.
 
-**Overall Security Posture:** MODERATE RISK  
-**Critical Issues:** 2  
-**High Issues:** 3  
-**Medium Issues:** 4  
-**Low Issues:** 3  
+## Supported Versions
 
-## System Overview
+Security updates are provided for the following versions:
 
-The container-host project consists of:
-- **Core Application:** Go-based VM provisioning tool (`main.go`, `coreos_download.go`)
-- **Container Orchestration:** K0s Kubernetes cluster with Docker Compose
-- **Network Services:** SSH access, Docker API, Kubernetes API endpoints
-- **VM Management:** QEMU-based Fedora CoreOS instances with Ignition configuration
-- **Authentication:** SSH key-based access with auto-generated RSA 2048-bit keys
+| Version | Supported          | End of Support |
+| ------- | ------------------ | -------------- |
+| 0.1.x   | :white_check_mark: | TBD            |
 
-## Security Assessment
+## Security Considerations
 
-### 1. Authentication & Authorization
+### System-Level Access
 
-#### Strengths ✅
-- SSH key-based authentication using RSA 2048-bit keys
-- Proper SSH key file permissions (private: 0600, public: 0644)
-- SSH keys directory secured with 0700 permissions
-- Auto-generation of SSH keys with proper validation
-- K0s token-based authentication for cluster components
+container-host-cli operates with elevated privileges and system access:
 
-#### Issues Identified ⚠️
-- **CRITICAL:** Docker API exposed without TLS encryption on port 2377 (`main.go:121`)
-- **HIGH:** No authentication mechanism for Docker API access
-- **MEDIUM:** K0s API server accessible without mutual TLS verification
-- **LOW:** SSH keys stored in predictable location (`ssh_keys/`)
+- **QEMU Process Management**: Creates and manages QEMU virtual machine processes
+- **Network Configuration**: Modifies host network settings and port forwarding
+- **File System Access**: Creates and manages VM images, SSH keys, and configuration files
+- **Resource Allocation**: Allocates system memory, CPU, and storage resources
 
-### 2. Network Security Configuration
+### Potential Risk Areas
 
-#### Strengths ✅
-- Port forwarding configuration properly isolated per VM instance
-- VNC access restricted to localhost
-- Load balancer (Traefik) properly configured for K8s API routing
-- Network segmentation between host and guest systems
+Users and contributors should be aware of these security-sensitive areas:
 
-#### Issues Identified ⚠️
-- **CRITICAL:** Docker socket proxy exposes unencrypted TCP connection (`configs/kubernetes.yaml:120`)
-- **HIGH:** Multiple privileged ports exposed (80, 2377, 6443, 9443)
-- **MEDIUM:** No network access control lists or firewall configuration
-- **MEDIUM:** Kubernetes API server accessible without rate limiting
+#### VM Image Handling
+- Downloads and validates CoreOS images from external sources
+- Manages VM disk images with potential for data exposure
+- Handles Ignition configurations that may contain sensitive data
 
-### 3. Container Security Practices
+#### Network Security
+- Exposes VM services on host network interfaces
+- Manages SSH key pairs for VM access
+- Configures Docker and Kubernetes API endpoints
 
-#### Strengths ✅
-- K0s containers use official images from `k0sproject/k0s`
-- Container runtime properly isolated with network segmentation
-- Proper volume mapping for persistent data
-- Traefik load balancer using official Docker image
+#### Process Security
+- Executes QEMU processes with system privileges
+- Handles command-line arguments that could be exploited
+- Manages temporary files and directories
 
-#### Issues Identified ⚠️
-- **HIGH:** All K0s containers run in privileged mode (`configs/kubernetes.yaml:91`)
-- **MEDIUM:** Containers have excessive capabilities (SYS_ADMIN, NET_ADMIN, SYS_PTRACE)
-- **MEDIUM:** seccomp disabled for worker containers (`configs/kubernetes.yaml:57`)
-- **LOW:** No container image signature verification
+#### Configuration Security
+- Processes JSON configuration files that may contain sensitive settings
+- Handles SSH private keys and certificates
+- Manages service endpoints and authentication credentials
 
-### 4. Secrets Management
+## Reporting Security Vulnerabilities
 
-#### Strengths ✅
-- SSH private keys properly protected with 0600 permissions
-- K0s authentication tokens stored in tmpfs volumes
-- Kubernetes secrets properly namespaced and scoped
-- Git repository excludes SSH keys directory (`.gitignore`)
+### DO NOT Report Security Issues Publicly
 
-#### Issues Identified ⚠️
-- **MEDIUM:** Pre-shared tokens generated without entropy validation
-- **LOW:** No secret rotation mechanism implemented
-- **LOW:** Debug mode can expose configuration details in logs
+Please **DO NOT** report security vulnerabilities through public GitHub issues, discussions, or any other public forum. Public disclosure of security issues puts all users at risk.
 
-### 5. Code Security Analysis
+### Responsible Disclosure Process
 
-#### Strengths ✅
-- Proper error handling throughout Go codebase
-- Input validation for configuration parameters
-- No hardcoded credentials or secrets in source code
-- Use of crypto/rand for secure key generation
+To report a security vulnerability:
 
-#### Issues Identified ⚠️
-- **LOW:** HTTP downloads without certificate pinning (`coreos_download.go:76`)
+1. **Email**: Send details to the project maintainer at the repository contact
+2. **Subject Line**: Include "SECURITY: container-host-cli" in the subject
+3. **Encryption**: PGP encryption encouraged (key available upon request)
 
-## Detailed Findings
+### Required Information
 
-### Critical Issues
+Please include the following information in your report:
 
-#### C1: Unencrypted Docker API Exposure
-**File:** `main.go:121`, `configs/kubernetes.yaml:120`  
-**Risk:** Remote code execution, container escape  
-**Description:** Docker API exposed via socat TCP proxy without TLS encryption or authentication.
+#### Basic Information
+- **Vulnerability Type**: Code execution, privilege escalation, information disclosure, etc.
+- **Affected Versions**: Specific versions or commit ranges affected
+- **Platform Impact**: Which operating systems/architectures are affected
+- **Severity Assessment**: Your assessment of the vulnerability's severity and impact
 
-**Recommendation:**
-```bash
-# Enable Docker TLS and generate certificates
-docker-cert-gen --ca-key ca-key.pem --ca ca.pem --key server-key.pem --cert server-cert.pem
-# Update socat command to use TLS
-socat TCP-LISTEN:2377,bind=0.0.0.0,fork,cert=server.pem,cafile=ca.pem UNIX-CONNECT:/var/run/docker.sock
+#### Technical Details
+- **Description**: Clear description of the vulnerability
+- **Attack Vector**: How the vulnerability can be exploited
+- **Proof of Concept**: Step-by-step reproduction instructions
+- **Impact Assessment**: Potential damage or data exposure
+- **Suggested Fix**: Any recommendations for remediation
+
+#### Example Report Template
+```
+Subject: SECURITY: container-host-cli - [Brief Description]
+
+Vulnerability Type: [e.g., Command Injection]
+Affected Versions: [e.g., v0.1.0 - current]
+Platform Impact: [e.g., Linux, macOS, Windows]
+Severity: [e.g., High - Remote Code Execution]
+
+Description:
+[Detailed description of the vulnerability]
+
+Reproduction Steps:
+1. [Step 1]
+2. [Step 2]
+3. [Observe vulnerability]
+
+Impact:
+[Description of potential damage]
+
+Suggested Fix:
+[Any recommendations for remediation]
+
+Contact Information:
+[Your preferred contact method for follow-up]
 ```
 
-#### C2: Privileged Container Execution
-**File:** `configs/kubernetes.yaml:91`  
-**Risk:** Host system compromise, container escape  
-**Description:** All K0s containers run with full privileges, breaking container isolation.
+## Response Timeline
 
-**Recommendation:** Implement capability-based security model and remove privileged mode where possible.
+We are committed to addressing security vulnerabilities promptly:
 
-### High-Risk Issues
+- **Acknowledgment**: Within 24 hours of receipt
+- **Initial Assessment**: Within 72 hours
+- **Status Updates**: Weekly updates during investigation
+- **Resolution Target**: 30 days for high-severity issues, 60 days for others
+- **Public Disclosure**: Coordinated with reporter after fix is available
 
-#### H1: Missing Docker API Authentication
-**Risk:** Unauthorized container management  
-**Recommendation:** Implement Docker API authentication using certificates or tokens.
+## Security Response Process
 
-#### H2: Excessive Container Capabilities
-**Risk:** Privilege escalation  
-**Recommendation:** Apply principle of least privilege, remove unnecessary capabilities.
+### Internal Process
 
-#### H3: Multiple Privileged Port Exposure
-**Risk:** Service enumeration, attack surface expansion  
-**Recommendation:** Implement port-based access control and service-specific firewalls.
+1. **Triage**: Assess severity and impact
+2. **Investigation**: Reproduce and analyze the vulnerability
+3. **Development**: Create and test fix
+4. **Testing**: Comprehensive security testing of the fix
+5. **Release**: Deploy fix through normal release channels
+6. **Notification**: Notify users of security update
+7. **Public Disclosure**: Coordinate public disclosure with reporter
 
-## Recommendations
+### Communication
 
-### Immediate Actions (0-30 days)
-1. **Enable Docker TLS:** Implement mutual TLS authentication for Docker API
-2. **Remove Privileged Mode:** Reconfigure K0s containers with minimal capabilities
-3. **Network Segmentation:** Implement firewall rules to restrict API access
-4. **Update Documentation:** Document security configurations and best practices
+- **Status Updates**: Regular updates to reporter on progress
+- **Timeline Coordination**: Work with reporter on disclosure timeline
+- **Credit**: Reporter will be credited in security advisory (unless anonymity requested)
+- **CVE Assignment**: Request CVE assignment for significant vulnerabilities
 
-### Short-term Actions (1-3 months)
-1. **Secret Rotation:** Implement automated key/token rotation mechanism
-2. **Monitoring:** Add security event logging and monitoring
-3. **Image Security:** Implement container image vulnerability scanning
-4. **Access Controls:** Add role-based access control for administrative functions
+## Security Best Practices for Users
 
-### Long-term Actions (3-6 months)
-1. **Security Hardening:** Complete security baseline implementation
-2. **Compliance:** Evaluate against CIS Kubernetes Benchmark
-3. **Audit Trail:** Implement comprehensive audit logging
-4. **Incident Response:** Develop security incident response procedures
+### Secure Configuration
 
-## Compliance Considerations
+- **Network Isolation**: Run VMs in isolated network environments when possible
+- **Access Control**: Limit SSH key access and rotate keys regularly
+- **Resource Limits**: Set appropriate memory and CPU limits for VMs
+- **Monitoring**: Monitor VM resource usage and network connections
 
-- **CIS Docker Benchmark:** Currently non-compliant due to privileged containers and unencrypted API
-- **CIS Kubernetes Benchmark:** Partially compliant, requires RBAC and network policy implementation  
-- **NIST Cybersecurity Framework:** Needs improvement in Identify, Protect, and Respond functions
+### Operational Security
 
-## Tools and Methodologies
+- **Regular Updates**: Keep container-host-cli updated to latest version
+- **Configuration Review**: Regularly audit configuration files for sensitive data
+- **Log Monitoring**: Monitor system logs for unusual QEMU or networking activity
+- **Backup Security**: Secure backups of VM images and configuration data
 
-- **Static Analysis:** Code review of Go source files
-- **Configuration Review:** Docker Compose and Ignition configurations
-- **Network Assessment:** Port and service enumeration
-- **Credential Analysis:** SSH key and token management evaluation
+### Development Security
 
-## Conclusion
+- **Code Review**: Review configuration files and scripts before deployment
+- **Dependency Management**: Keep dependencies updated and audit for vulnerabilities
+- **Testing**: Test configurations in isolated environments before production use
+- **Documentation**: Document security-relevant configuration choices
 
-The container-host project provides useful VM and container management capabilities but requires significant security improvements before production deployment. The critical issues around Docker API exposure and privileged containers must be addressed immediately. Implementation of the recommended security controls will substantially improve the system's security posture.
+## Security Hardening Recommendations
 
-**Next Review Date:** March 8, 2026  
-**Auditor:** Claude Code Security Analysis  
-**Contact:** geoff@seemueller.io
+### System-Level Hardening
+
+```bash
+# Restrict file permissions for SSH keys
+chmod 600 ssh_keys/container-host-*
+
+# Limit QEMU process capabilities
+# Configure system-level resource limits
+
+# Monitor network connections
+netstat -tulpn | grep qemu
+```
+
+### Configuration Hardening
+
+```json
+{
+  "security": {
+    "restrictNetworkAccess": true,
+    "enableFirewall": true,
+    "limitResourceUsage": true
+  },
+  "qemu": {
+    "enableSeccomp": true,
+    "restrictDeviceAccess": true
+  }
+}
+```
+
+## Known Security Limitations
+
+### Current Limitations
+
+- **Privilege Requirements**: Requires elevated privileges for VM management
+- **Network Exposure**: VM services are exposed on host network by default
+- **Image Integrity**: Limited cryptographic verification of downloaded images
+- **Process Isolation**: QEMU processes run with host-level access
+
+### Mitigation Strategies
+
+- Use containerization or sandboxing to limit host access
+- Implement network-level access controls and firewalls
+- Verify image checksums and signatures when available
+- Run in dedicated, isolated environments for production use
+
+## Compliance and Legal Considerations
+
+### Regulatory Compliance
+
+This tool may be subject to various compliance requirements depending on usage:
+
+- **GDPR**: If processing EU personal data in VMs
+- **HIPAA**: If handling healthcare data
+- **SOX**: If used in financial reporting systems
+- **Export Controls**: Software may be subject to export regulations
+
+### Legal Disclaimers
+
+- **No Warranty**: Security features provided "as is" without warranty
+- **User Responsibility**: Users are responsible for secure configuration and operation
+- **Compliance**: Users must ensure compliance with applicable regulations
+- **Liability**: See [LICENSE](LICENSE) for liability limitations
+
+## Security Contact Information
+
+For security-related inquiries:
+- **GitHub Security**: Use GitHub's private vulnerability reporting feature
+- **Repository Issues**: For general security questions (non-sensitive)
+- **Response Hours**: Best effort response within 24-72 hours
+
+## Security Advisory History
+
+Security advisories will be published at:
+- GitHub Security Advisories: https://github.com/geoffsee/container-host/security/advisories
+- Project Security Page: https://github.com/geoffsee/container-host/blob/master/SECURITY.md
 
 ---
-*This audit was conducted using automated analysis tools and manual security assessment techniques. Regular security reviews should be performed as the system evolves.*
+
+**Important Legal Notice**: This security policy provides general guidance but does not constitute legal advice or warranty. Users should consult qualified security professionals and legal counsel for specific security and compliance requirements.
+
+**Last Updated**: September 2025

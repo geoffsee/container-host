@@ -1,6 +1,72 @@
 # container-host
-
 A Go-based tool for creating and managing Fedora CoreOS virtual machines with Docker and Kubernetes support using QEMU.
+```mermaid
+graph TB
+    CLI[container-host CLI] --> Config[container-host.config.json]
+    CLI --> Download[CoreOS Image Download]
+    CLI --> SSH[SSH Key Generation]
+    CLI --> Ignition[Ignition Config Generation]
+    
+    Download --> Images[images/ Directory]
+    SSH --> Keys[ssh_keys/ Directory]
+    Ignition --> Configs[configs/ Directory]
+    
+    CLI --> QEMU[QEMU VM Management]
+    QEMU --> VM1[VM Instance 1]
+    QEMU --> VM2[VM Instance 2]
+    QEMU --> VMN[VM Instance N]
+    
+    VM1 --> CoreOS1[Fedora CoreOS]
+    VM2 --> CoreOS2[Fedora CoreOS]
+    VMN --> CoreOSN[Fedora CoreOS]
+    
+    CoreOS1 --> Docker1[Docker Engine]
+    CoreOS1 --> K8s1[K0s/Kubernetes]
+    CoreOS2 --> Docker2[Docker Engine]
+    CoreOS2 --> K8s2[K0s/Kubernetes]
+    CoreOSN --> DockerN[Docker Engine]
+    CoreOSN --> K8sN[K0s/Kubernetes]
+    
+    VM1 --> Ports1[SSH:2222, Docker:2377, K8s:6443]
+    VM2 --> Ports2[SSH:2223, Docker:2378, K8s:6444]
+    VMN --> PortsN[SSH:222N, Docker:237N, K8s:644N]
+    
+    Host[Host System] --> HW[Hardware Acceleration<br/>HVF/KVM/WHPX]
+    QEMU --> HW
+    
+    User[User] --> Host
+    User -.->|SSH| Ports1
+    User -.->|Docker API| Ports1
+    User -.->|kubectl| Ports1
+```
+
+## How It Works
+
+```mermaid
+flowchart TD
+    Start([User runs container-host]) --> Config{Config exists?}
+    Config -->|No| Default[Use default config]
+    Config -->|Yes| Load[Load config file]
+    
+    Default --> Setup[Setup Phase]
+    Load --> Setup
+    
+    Setup --> Download[Download Fedora CoreOS image]
+    Setup --> Keys[Generate SSH key pair]
+    Setup --> Ignition[Create Ignition config]
+    
+    Download --> Launch[Launch QEMU VMs]
+    Keys --> Launch
+    Ignition --> Launch
+    
+    Launch --> Boot[VMs boot with CoreOS]
+    Boot --> Services[Start Docker]
+    Services --> Ready[✅ Ready for use]
+    
+    Ready --> SSH[SSH: localhost:2222+]
+    Ready --> Docker[Docker API: localhost:2377+]
+    Ready --> K8s[K8s API: localhost:6443+]
+```
 
 ## Quick Start
 
@@ -240,10 +306,71 @@ Enable verbose logging:
 - [Fedora CoreOS Documentation](https://docs.fedoraproject.org/en-US/fedora-coreos/)
 - [Ignition Configuration](https://coreos.github.io/ignition/)
 
+## Legal Notice and Disclaimers
+
+### Limitation of Liability
+
+**IMPORTANT: container-host-cli manages system-level resources including virtual machines, network interfaces, and processes. Use at your own risk.**
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+### System-Level Operations Warning
+
+This tool performs system-level operations that may:
+- Consume significant system resources (CPU, memory, disk space, network bandwidth)
+- Modify network configurations and create network interfaces
+- Create and manage virtual machine processes with elevated privileges
+- Download and execute third-party software (CoreOS images, containers)
+- Manage SSH keys and cryptographic materials
+- Expose network services on your system
+
+**Users are responsible for:**
+- Understanding the security implications of running virtual machines
+- Implementing appropriate network security measures
+- Monitoring resource usage and system impact
+- Ensuring compliance with organizational security policies
+- Securing SSH keys and access credentials
+
+### Third-Party Dependencies
+
+This tool relies on external dependencies and services:
+- **Fedora CoreOS Images**: Downloaded from official Fedora servers
+- **QEMU**: System virtualization software
+- **Docker**: Container runtime and API
+- **Kubernetes (K0s)**: Container orchestration platform
+
+Users should review the security and licensing terms of these dependencies independently.
+
+### Export Control Compliance
+
+This software may be subject to export control regulations. Users are responsible for ensuring compliance with applicable export control laws in their jurisdiction.
+
+### Data Privacy
+
+Virtual machines created by this tool may process, store, or transmit sensitive data. Users are responsible for:
+- Implementing appropriate data protection measures
+- Ensuring compliance with privacy regulations (GDPR, CCPA, etc.)
+- Securing VM instances and their data
+- Managing data retention and deletion
+
 ## License
 
-[License information would go here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+**Copyright (c) 2025 Geoff Seemueller**
+
+The MIT License is a permissive license that allows commercial and private use, modification, and distribution. However, it provides no warranty and limits liability. See the full license text for complete terms.
 
 ## Contributing
 
-[Contributing guidelines would go here]
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
+
+- Code of conduct and community standards
+- Development setup and processes  
+- Legal requirements for contributors
+- Security considerations for contributions
+- Testing and documentation requirements
+
+### Security Issues
+
+If you discover security vulnerabilities, please report them responsibly: [Security Policy](SECURITY.md). **Do not report security issues through public GitHub issues.**
