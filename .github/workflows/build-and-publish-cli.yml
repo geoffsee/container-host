@@ -50,7 +50,8 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           else
-            echo "VERSION=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            # Use a valid semver format for dev versions
+            echo "VERSION=0.0.0-dev.$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
 
       - name: Build Go binaries
