@@ -2,6 +2,30 @@
 
 A Go-based tool for creating and managing Fedora CoreOS virtual machines with Docker and Kubernetes support using QEMU.
 
+## Quick Start
+
+Install and run container-host using your preferred Node package manager:
+
+```bash
+# Using npm
+npx container-host-cli [options]
+
+# Using yarn
+yarn dlx container-host-cli [options]
+
+# Using pnpm
+pnpm dlx container-host-cli [options]
+
+# Using bun
+bunx container-host-cli [options]
+
+# Or install globally
+npm install -g container-host-cli
+container-host [options]
+```
+
+The CLI automatically downloads the appropriate binary for your platform and architecture.
+
 ## Overview
 
 container-host automates the setup of Fedora CoreOS VMs with pre-configured Docker Engine and Kubernetes (K0s) support. It handles VM image downloads, SSH key generation, Ignition configuration, and multi-instance deployments across different architectures.
