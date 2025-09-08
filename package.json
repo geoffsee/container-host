@@ -10,7 +10,8 @@
   "scripts": {
     "build": "bun build src/cli.ts --outdir dist --target node && bun build src/install.ts --outdir dist --target node",
     "prepare": "bun run build",
-    "postinstall": "node -e \"try { require('./dist/install.js') } catch (e) { console.log('Install check skipped:', e.message) }\""
+    "postinstall": "node -e \"try { require('./dist/install.js') } catch (e) { console.log('Install check skipped:', e.message) }\"",
+    "local-ci": "act push --pull=false"
   },
   "keywords": ["container", "host", "cli", "docker", "oci", "coreos", "qemu"],
   "author": "Geoff Seemueller",
