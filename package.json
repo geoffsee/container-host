@@ -1,0 +1,35 @@
+{
+  "name": "container-host-cli",
+  "version": "0.1.0",
+  "description": "container host cli",
+  "repository": "https://github.com/geoffsee/container-host",
+  "main": "dist/cli.js",
+  "bin": {
+    "container-host": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "bun build src/cli.ts --outdir dist --target node && bun build src/install.ts --outdir dist --target node",
+    "prepare": "bun run build",
+    "postinstall": "node -e \"try { require('./dist/install.js') } catch (e) { console.log('Install check skipped:', e.message) }\"",
+    "local-ci": "act push --pull=false"
+  },
+  "keywords": ["container", "host", "cli", "docker", "oci", "coreos", "qemu"],
+  "author": "Geoff Seemueller",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "bun-types": "latest"
+  },
+  "dependencies": {},
+  "optionalDependencies": {
+    "container-host-cli-darwin-x64": "0.1.0",
+    "container-host-cli-darwin-arm64": "0.1.0",
+    "container-host-cli-linux-x64": "0.1.0",
+    "container-host-cli-linux-arm64": "0.1.0",
+    "container-host-cli-win32-x64": "0.1.0",
+    "container-host-cli-win32-arm64": "0.1.0"
+  },
+  "files": [
+    "dist/"
+  ]
+}
