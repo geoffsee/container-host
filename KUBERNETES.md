@@ -2,7 +2,7 @@
 
 ## Deploying a k8s cluster
 ```shell
-DOCKER_HOST=tcp://localhost:2377 docker compose -f configs/cluster.yaml up -d
+DOCKER_HOST=tcp://localhost:2377 docker compose -f configs/kubernetes.yaml up -d
 ```
 
 ## Interacting with the Cluster
