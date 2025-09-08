@@ -49,23 +49,29 @@ type SystemdUnit struct {
 	Contents string `json:"contents"`
 }
 
-// createIgnitionConfig creates an Ignition configuration with SSH key for core user and Docker CE installation
+// createIgnitionConfig creates an Ignition configuration with SSH key for core user and Docker engine setup
 func createIgnitionConfig(sshPublicKey string) (string, error) {
-	dockerCEServiceContents := `[Unit]
-Description=Install Docker CE
-Wants=network-online.target
+	setupLinger := `[Unit]
+Description=Enable linger for user 'core' (start user manager at boot)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/loginctl enable-linger core
+
+[Install]
+WantedBy=multi-user.target
+`
+	dockerServiceContents := `[Unit]
+Description=Enable and start Docker engine
 After=network-online.target
-Before=zincati.service
-ConditionPathExists=!/var/lib/%N.stamp
+Wants=network-online.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/curl --output-dir "/etc/yum.repos.d" --remote-name https://download.docker.com/linux/fedora/docker-ce.repo
-ExecStart=/usr/bin/rpm-ostree override remove moby-engine containerd runc docker-cli --install docker-ce
 ExecStart=/usr/bin/systemctl enable docker.service
-ExecStart=/usr/bin/touch /var/lib/%N.stamp
-ExecStart=/usr/bin/systemctl --no-block reboot
+ExecStart=/usr/bin/systemctl start docker.service
 
 [Install]
 WantedBy=multi-user.target`
@@ -80,6 +86,17 @@ Type=simple
 Restart=always
 RestartSec=5
 ExecStart=/usr/bin/socat TCP-LISTEN:2377,bind=0.0.0.0,fork,reuseaddr UNIX-CONNECT:/var/run/docker.sock
+
+[Install]
+WantedBy=multi-user.target`
+	disableZincatiServiceContents := `[Unit]
+Description=Disable Zincati automatic updates
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/systemctl mask zincati.service
 
 [Install]
 WantedBy=multi-user.target`
@@ -99,15 +116,21 @@ WantedBy=multi-user.target`
 		Systemd: SystemdSection{
 			Units: []SystemdUnit{
 				{
-					Name:     "rpm-ostree-install-docker-ce.service",
+					Name:     "docker-setup.service",
 					Enabled:  true,
-					Contents: dockerCEServiceContents,
+					Contents: dockerServiceContents,
 				},
 				{
 					Name:     "docker-tcp-proxy.service",
 					Enabled:  true,
 					Contents: dockerTcpServiceContents,
 				},
+				{
+					Name:     "disable-zincati.service",
+					Enabled:  true,
+					Contents: disableZincatiServiceContents,
+				},
+				{Name: "setup-linger-core.service", Enabled: true, Contents: setupLinger},
 			},
 		},
 	}
@@ -211,7 +234,7 @@ func profileForArch(arch string) qemuProfile {
 		return qemuProfile{
 			binary:  "qemu-system-aarch64",
 			machine: "virt",
-			cpu:     "cortex-a72",
+			cpu:     "max",
 			biosCandidates: []string{
 				"/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
 				"/usr/share/edk2/aarch64/QEMU_EFI.fd",
@@ -223,7 +246,7 @@ func profileForArch(arch string) qemuProfile {
 		return qemuProfile{
 			binary:  "qemu-system-x86_64",
 			machine: "q35",
-			cpu:     "host",
+			cpu:     "max",
 			biosCandidates: []string{
 				"/opt/homebrew/share/qemu/edk2-x86_64-code.fd",
 				"/usr/share/OVMF/OVMF_CODE.fd",
@@ -235,7 +258,7 @@ func profileForArch(arch string) qemuProfile {
 		return qemuProfile{
 			binary:         fmt.Sprintf("qemu-system-%s", arch),
 			machine:        "virt",
-			cpu:            "",
+			cpu:            "host",
 			biosCandidates: []string{
 				// no good generic candidates — let QEMU default if none exist
 			},
@@ -269,11 +292,14 @@ func main() {
 	}
 
 	// VM configuration
-	memory := "2048"
-	cpus := "2"
+	memory := "4096"
+	cpus := "4"
 	sshPort := "2222"
 	vncPort := "5900"
 	dockerPort := "2377"
+	httpPort := "80"
+	kubernetesPort := "6443"
+	k0sPort := "9443"
 	sshPublicKeyPath := "ssh_keys/coreos_rsa.pub"
 
 	// Check if VM image exists
@@ -338,8 +364,10 @@ func main() {
 	fmt.Printf("CPUs: %s\n", cpus)
 	fmt.Printf("SSH Port: %s (connect with: ssh -p %s core@localhost)\n", sshPort, sshPort)
 	fmt.Printf("VNC Port: %s (connect with VNC viewer to localhost:%s)\n", vncPort, vncPort)
+	fmt.Printf("HTTP Port: %s (web services accessible at localhost:%s)\n", httpPort, httpPort)
 	fmt.Printf("Docker Port: %s (Docker API accessible at localhost:%s)\n", dockerPort, dockerPort)
-	fmt.Println("Docker CE: Will be installed and enabled on first boot")
+	fmt.Printf("Kubernetes API Port: %s (kubectl API at localhost:%s)\n", kubernetesPort, kubernetesPort)
+	fmt.Println("Docker Engine: Will be enabled and started on first boot")
 	fmt.Println("Host Access: export DOCKER_HOST=tcp://localhost:2377")
 	fmt.Println("==========================================")
 	fmt.Println("Starting VM...")
@@ -372,11 +400,19 @@ func main() {
 		"-smp", cpus,
 		"-m", memory,
 		"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", absImagePath),
-		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%s-:22,hostfwd=tcp::%s-:2377", sshPort, dockerPort),
+		"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%s-:22,hostfwd=tcp::%s-:2377,hostfwd=tcp::%s-:80,hostfwd=tcp::%s-:6443,hostfwd=tcp::%s-:9443", sshPort, dockerPort, httpPort, kubernetesPort, k0sPort),
 		"-device", "virtio-net-pci,netdev=net0",
+		"-device", "virtio-rng-pci",
 		"-vnc", fmt.Sprintf(":%s", vncPort[len(vncPort)-1:]),
 		"-serial", "stdio",
 		"-fw_cfg", fmt.Sprintf("name=opt/com.coreos/config,file=%s", configFile),
+	}
+
+	switch runtime.GOOS {
+	case "darwin":
+		args = append(args, "-accel", "hvf")
+	case "linux":
+		args = append(args, "-accel", "kvm")
 	}
 
 	// Add Windows virtualization features when running on Windows host

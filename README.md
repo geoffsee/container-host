@@ -11,4 +11,5 @@ make run
 DOCKER_HOST=tcp://localhost:2377 docker run -it hello-world:latest
 ```
 
-You can download a release binary for your system in the Github releases.
+## See also
+[KUBERNETES.md](KUBERNETES.md)

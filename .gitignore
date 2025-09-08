@@ -6,4 +6,3 @@
 /vms/
 *.qcow2
 /container-*os*
-/configs
