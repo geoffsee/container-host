@@ -1,0 +1,14 @@
+{
+  "name": "container-host-cli-darwin-x64",
+  "version": "0.1.0",
+  "description": "container-host CLI binary for macOS x64",
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "main": "binary/container-host-darwin-amd64",
+  "files": [
+    "binary/"
+  ],
+  "keywords": ["container", "host", "cli", "binary"],
+  "author": "William Seemueller",
+  "license": "MIT"
+}

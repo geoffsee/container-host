@@ -1,0 +1,14 @@
+{
+  "name": "container-host-cli-linux-arm64",
+  "version": "0.1.0",
+  "description": "container-host CLI binary for Linux ARM64",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "main": "binary/container-host-linux-arm64",
+  "files": [
+    "binary/"
+  ],
+  "keywords": ["container", "host", "cli", "binary"],
+  "author": "William Seemueller",
+  "license": "MIT"
+}

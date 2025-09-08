@@ -1,0 +1,14 @@
+{
+  "name": "container-host-cli-win32-x64",
+  "version": "0.1.0",
+  "description": "container-host CLI binary for Windows x64",
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "main": "binary/container-host-windows-amd64.exe",
+  "files": [
+    "binary/"
+  ],
+  "keywords": ["container", "host", "cli", "binary"],
+  "author": "William Seemueller",
+  "license": "MIT"
+}

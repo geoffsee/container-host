@@ -7,3 +7,5 @@
 *.qcow2
 /container-*os*
 /configs/*.json
+test-build-process.sh
+
