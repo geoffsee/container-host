@@ -168,7 +168,7 @@ The container-host project provides useful VM and container management capabilit
 
 **Next Review Date:** March 8, 2026  
 **Auditor:** Claude Code Security Analysis  
-**Contact:** [Your security team contact information]
+**Contact:** geoff@seemueller.io
 
 ---
 *This audit was conducted using automated analysis tools and manual security assessment techniques. Regular security reviews should be performed as the system evolves.*
